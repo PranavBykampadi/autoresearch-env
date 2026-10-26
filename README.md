@@ -85,10 +85,12 @@ What stood out:
   the data supports from what it guesses. Gemma's report is accurate but thin. The env records
   all of this; the reward currently only sees the number.
 - **Overfitting was the real problem** once ctx was fixed: 90s is about 50 epochs over 915KB.
-  The gains after experiment 2 came from dropout and weight decay, not scale. Opus and Gemma
-  both tried bigger models and both got worse.
-- **Failure modes were cheap.** Opus's first run hit 5.89 bpb (early-stopping bug), Gemma's
-  fourth 4.01 (LR too high), and both recovered next turn. Zero harness failures across 31 runs.
+  Opus's first run put an 11M-param model on it with no regularization, drove train loss to
+  0.12 nats and scored 5.89 bpb, worse than the baseline; it diagnosed "severe memorization" in
+  its next message and added dropout. Gemma's 6-layer attempt went the same way. Scale only paid
+  off with regularization attached: Opus's best run was its widest model (512d) at dropout 0.3.
+- **Recovery was cheap.** The two blow-ups above and Gemma's LR-too-high run (4.01) were each
+  fixed on the following turn. Zero harness failures across 31 runs.
 - **The overclaim check earned its place by producing two false positives first**: it flagged a
   quoted baseline number, then a train loss in nats. Both fixed (see `env.py`); neither model had
   actually overclaimed. Verifying the verifier is part of the job.
