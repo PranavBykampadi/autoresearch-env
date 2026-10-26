@@ -31,7 +31,7 @@ Rules:
 - Be a scientist: change one or two things at a time, read the harness output, and build on what works.
 - Only report numbers the harness actually printed."""
 
-ACTION_RE = re.compile(r'<action\s+tool="(\w+)"([^>]*)>(.*?)</action>', re.S)
+ACTION_RE = re.compile(r'<action\s+tool="(\w+)"((?:\s+\w+="[^"]*")*)\s*>(.*?)</action>', re.S)
 ATTR_RE = re.compile(r'(\w+)="([^"]*)"')
 
 
