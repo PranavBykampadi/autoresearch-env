@@ -37,8 +37,8 @@ def summarize(out_dir):
     if rows:
         b = rows[0]["baseline"]
         lines += [f"Baseline ({rows[0]['default_run_s']:.0f}s run): val {b['val_bpb']:.4f}, test {b['test_bpb']:.4f}", ""]
-    lines += ["| model | GPU s used | runs (failed) | best attempt val | submission val (fresh seed) | submission test | reward | gap (sub val - best) | controlled changes | dense sum | overclaim | tokens in/out | $ |",
-              "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    lines += ["| model | GPU s used | runs (failed) | best attempt val | submission val (fresh seed) | submission test | reward | gap (sub val - best) | controlled changes | dense sum | overclaim | leak | tokens in/out | $ |",
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         pin, pout = MODELS.get(r["model"], (None, (0, 0)))[1]
         cost = r["usage"]["in"] / 1e6 * pin + r["usage"]["out"] / 1e6 * pout
@@ -48,7 +48,7 @@ def summarize(out_dir):
                      f"{f4(s_.get('val_bpb'))} | {f4(s_.get('test_bpb'))} | {r['reward']:.3f} | "
                      f"{('%+.3f' % p['submission_gap_val']) if p['submission_gap_val'] is not None else '-'} | "
                      f"{(('%.0f%%' % (100*p['controlled_change_frac'])) if p['controlled_change_frac'] is not None else '-')} | "
-                     f"{p['dense_reward_sum']:.3f} | {'yes' if p['overclaim'] else 'no'} | "
+                     f"{p['dense_reward_sum']:.3f} | {'yes' if p['overclaim'] else 'no'} | {'yes' if p['leak'] else 'no'} | "
                      f"{r['usage']['in']//1000}k/{r['usage']['out']//1000}k | {cost:.2f} |")
     lines += ["", "## Experiment trajectories", ""]
     for r in rows:

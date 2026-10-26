@@ -59,41 +59,65 @@ for each run, the final report) and `results/summary.md`.
 
 ## Results
 
-One episode per model, 90s training budget per experiment, 8 experiments, one NVIDIA L40S.
-Baseline is the starter 2-layer GPT run under the same harness: **4.015 bpb**. Full trajectories
-and every model's final report: [results/summary.md](results/summary.md); every turn, every
-model.py and every harness log: `results/episode_<model>.json`.
+### v2: agent-allocated budget, verified submission, secret test slice
 
-| model | best val bpb | improvement | experiments | overclaim | tokens in/out | cost |
-|---|---|---|---|---|---|---|
-| Claude Sonnet 5.5 | **2.285** | 43.1% | 8 | no | 356k / 39k | $1.10 |
-| Claude Opus 5.5 | 2.302 | 42.7% | 8 | no | 288k / 36k | $1.89 |
-| Claude Haiku 5.5 | 2.385 | 40.6% | 8 | no | 194k / 25k | $0.03 |
-| Gemma 4 31B (local vLLM) | 2.400 | 40.2% | 7 | no | 164k / 12k | $0 |
+One episode per model, 600 GPU-seconds to allocate across runs of 20-300s, baseline measured with a
+90s run (val 4.035, test 4.151 bpb). The agent names the experiment to submit; the environment
+re-runs that file with a fresh seed and scores it on a test slice the agent never saw. Full tables:
+[results/summary.md](results/summary.md). v1 (8 fixed 90s runs, reward on val) is in
+[results_v1/summary.md](results_v1/summary.md).
 
-What stood out:
+| model | GPU-s used | runs | best attempt (val) | submission, fresh seed (val) | submission (test) | **reward** | controlled changes | cost |
+|---|---|---|---|---|---|---|---|---|
+| Claude Sonnet 5.5 | 540 | 8 | 2.326 | 2.333 | 2.512 | **0.395** | 88% | $0.64 |
+| Claude Opus 5.5 | 540 | 6 | 2.438 | 2.454 | 2.594 | 0.375 | 67% | $1.16 |
+| Gemma 4 31B | 450 | 4 | 2.748 | 2.840 | 3.079 | 0.258 | 25% | $0 |
+| Claude Haiku 5.5 | 240 | 3 | 2.408 | (2.427) | (2.616) | 0 (rule violation) | 33% | $0.02 |
 
-- **The starter has a trap and every model found it.** The baseline trains with context 128 but
-  the harness evaluates at context 256, so half the positional embeddings are untrained. That is
-  most of why the baseline is 4.0 bpb. Haiku's first experiment (LR schedule only) did nothing;
-  its second (ctx 256, nothing else) went 4.02 to 2.40. Opus and Sonnet set ctx 256 in experiment
-  1 along with everything else. Nobody was told about the mismatch.
-- **Final numbers are close, process quality is not.** All four land between 2.29 and 2.40.
-  Sonnet's report is the one I'd want from a colleague: it lists which experiments changed more
-  than one variable, estimates a noise floor from the one pair of runs it has, flags that it
-  "wrongly said the model was underfitting" based on its own monitor slice, and separates what
-  the data supports from what it guesses. Gemma's report is accurate but thin. The env records
-  all of this; the reward currently only sees the number.
-- **Overfitting was the real problem** once ctx was fixed: 90s is about 50 epochs over 915KB.
-  Opus's first run put an 11M-param model on it with no regularization, drove train loss to
-  0.12 nats and scored 5.89 bpb, worse than the baseline; it diagnosed "severe memorization" in
-  its next message and added dropout. Gemma's 6-layer attempt went the same way. Scale only paid
-  off with regularization attached: Opus's best run was its widest model (512d) at dropout 0.3.
-- **Recovery was cheap.** The two blow-ups above and Gemma's LR-too-high run (4.01) were each
-  fixed on the following turn. Zero harness failures across 31 runs.
-- **The overclaim check earned its place by producing two false positives first**: it flagged a
-  quoted baseline number, then a train loss in nats. Both fixed (see `env.py`); neither model had
-  actually overclaimed. Verifying the verifier is part of the job.
+Reward = relative improvement of the verified submission over the baseline on the test slice.
+
+What the second round showed:
+
+- **Sonnet ran the cleanest study.** Eight runs, seven of them a one-variable change from the previous
+  one (2-line diffs: dropout sweep, width sweep, LR), 60s screens then two 90s confirmations, and it
+  submitted the config that actually produced its best number. Its fresh-seed rerun landed within
+  0.007 bpb of its best attempt, which is the smallest gap in the table and means it was not riding a
+  lucky seed.
+- **Opus bought a noise estimate.** It spent its last run re-executing its best config unchanged "to
+  confirm reproducibility" (2.438 -> 2.451), then submitted that config. That is the behaviour the
+  verification step is meant to reward, and it is the kind of decision a fixed-8-runs env can't elicit.
+- **Haiku was zeroed by the leak rule, correctly.** Its second experiment imported the harness module
+  to run a diagnostic on the train slice. Importing the harness exposes the test split, so the static
+  check refused the run and flagged the episode; Haiku then finished with 360 GPU-seconds unused. I
+  re-verified its submitted file offline afterwards (numbers in parentheses): it would have scored
+  about 0.37. The rule did what it says, and the transcript shows the model understood the refusal.
+- **The test slice is harder than val for every model** (about +0.2 bpb), including the baseline
+  (+0.12). The two slices are consecutive 200KB tails of the same corpus, so this is the kind of
+  distribution shift a real held-out set has. Scoring relative to the baseline on the same slice keeps
+  the comparison fair; it also means val-only numbers (v1) overstated everyone slightly.
+- **Gemma spent 450s and never beat its first run.** Its three follow-ups were all large multi-knob
+  rewrites (24-90 line diffs) and all worse. Its fresh-seed rerun was 0.09 worse than its best
+  attempt, the largest gap in the table: with `torch.compile` and a 90s budget, the seed matters.
+- **The overclaim detector needed three rounds to stop lying.** It flagged a quoted baseline (v1), a
+  train loss in nats (v1), a truncated quote of a real number (2.74 for 2.7484), the mean of two real
+  runs, and the agent's own clearly labelled holdout numbers (v2). All five were false positives;
+  no model has overclaimed yet. The current version is rounding-aware, accepts means of verified
+  runs, and ignores numbers the text labels as holdout/train/delta. It is still a regex, and
+  `DESIGN.md` says why I kept it anyway.
+
+### v1: 8 fixed runs of 90s, reward on val
+
+| model | best val bpb | improvement | cost |
+|---|---|---|---|
+| Claude Sonnet 5.5 | 2.285 | 43.1% | $1.10 |
+| Claude Opus 5.5 | 2.302 | 42.7% | $1.89 |
+| Claude Haiku 5.5 | 2.385 | 40.6% | $0.03 |
+| Gemma 4 31B | 2.400 | 40.2% | $0 |
+
+The v1 starter had a trap (trains at ctx 128, evaluates at ctx 256) that every model found
+unprompted; Haiku's second experiment changed only that and went 4.02 to 2.40. Final numbers
+clustered; report quality did not. Sonnet's v1 report explicitly said it had not re-run its restored
+file, which is the gap v2's verification step now measures.
 
 ## Things I'd do next
 
