@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+results/raw/
+results/baseline_ws/
+*.egg-info/

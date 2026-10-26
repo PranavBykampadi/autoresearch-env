@@ -1,0 +1,6 @@
+[project]
+name = "autoresearch-env"
+version = "0.1.0"
+description = "Open-ended ML research RL environment with a verifiable metric (val bits-per-byte)"
+requires-python = ">=3.9"
+dependencies = ["requests", "anthropic"]
