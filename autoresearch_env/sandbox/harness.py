@@ -4,7 +4,11 @@ so edits to it are discarded. Agents edit model.py only.
 Protocol: model.py must define
     build_model(vocab_size: int) -> torch.nn.Module     forward(idx[B,T]) -> logits[B,T,vocab]
     train(model, train_bytes: np.ndarray, budget_s: float, device) -> None   (train in place)
-Metric: bits per byte on a fixed held-out slice of the corpus, computed here with teacher forcing.
+
+Data: the corpus tail is held out in two slices. VAL is reported to the agent after every run.
+TEST is never shown; the environment scores the final submission on it with a fresh seed. Reading the
+data file from model.py is against the rules and is checked for.
+Metric: bits per byte with teacher forcing at context EVAL_CTX.
 """
 import argparse, math, os, sys, time, traceback
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # harness runs under python -I
@@ -13,20 +17,24 @@ import torch
 
 VOCAB = 256
 EVAL_CTX = 256
-EVAL_BYTES = 200_000  # fixed held-out tail of the corpus
+VAL_BYTES = 200_000
+TEST_BYTES = 200_000
 
 
 def load_split(path):
     data = np.frombuffer(open(path, "rb").read(), dtype=np.uint8)
-    return data[:-EVAL_BYTES].copy(), data[-EVAL_BYTES:].copy()
+    train = data[:-(VAL_BYTES + TEST_BYTES)].copy()
+    val = data[-(VAL_BYTES + TEST_BYTES):-TEST_BYTES].copy()
+    test = data[-TEST_BYTES:].copy()
+    return train, val, test
 
 
 @torch.no_grad()
-def eval_bpb(model, val, device, ctx=EVAL_CTX, bs=64):
+def eval_bpb(model, split, device, ctx=EVAL_CTX, bs=64):
     model.eval()
-    n_tok = (len(val) - 1) // ctx * ctx
-    x = torch.from_numpy(val[:n_tok].astype(np.int64)).view(-1, ctx)
-    y = torch.from_numpy(val[1:n_tok + 1].astype(np.int64)).view(-1, ctx)
+    n_tok = (len(split) - 1) // ctx * ctx
+    x = torch.from_numpy(split[:n_tok].astype(np.int64)).view(-1, ctx)
+    y = torch.from_numpy(split[1:n_tok + 1].astype(np.int64)).view(-1, ctx)
     nll = 0.0
     for i in range(0, len(x), bs):
         xb, yb = x[i:i + bs].to(device), y[i:i + bs].to(device)
@@ -47,8 +55,8 @@ def main():
     a = ap.parse_args()
     torch.manual_seed(a.seed); np.random.seed(a.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    train, val = load_split(a.data)
-    print(f"device={device} train_bytes={len(train)} val_bytes={len(val)} budget_s={a.budget}", flush=True)
+    train, val, test = load_split(a.data)
+    print(f"device={device} train_bytes={len(train)} val_bytes={len(val)} budget_s={a.budget} seed={a.seed}", flush=True)
     # pay one-time lazy-import costs (optimizer construction is ~9s on this filesystem) before the clock starts
     _w = torch.zeros(4, device=device, requires_grad=True)
     torch.optim.AdamW([_w], lr=1e-3).step(); (_w * 2).sum().backward()
@@ -64,14 +72,16 @@ def main():
         elapsed = time.time() - t0
         if elapsed > a.budget + 30:  # setup inside train() is allowed, but not a second training run
             print(f"OVER_BUDGET elapsed={elapsed:.1f}s", flush=True)
-            print("FINAL_VAL_BPB=inf", flush=True)
+            print("FINAL_VAL_BPB=inf", flush=True); print("FINAL_TEST_BPB=inf", flush=True)
             return
-        bpb = eval_bpb(net, val, device)
+        vb = eval_bpb(net, val, device)
+        tb = eval_bpb(net, test, device)
         print(f"train_elapsed_s={elapsed:.1f}", flush=True)
-        print(f"FINAL_VAL_BPB={bpb:.4f}", flush=True)
+        print(f"FINAL_VAL_BPB={vb:.4f}", flush=True)
+        print(f"FINAL_TEST_BPB={tb:.4f}", flush=True)
     except Exception:
         traceback.print_exc()
-        print("FINAL_VAL_BPB=inf", flush=True)
+        print("FINAL_VAL_BPB=inf", flush=True); print("FINAL_TEST_BPB=inf", flush=True)
 
 
 if __name__ == "__main__":

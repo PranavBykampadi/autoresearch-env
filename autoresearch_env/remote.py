@@ -31,8 +31,12 @@ def run_remote(workspace, run_id, budget_s, seed=0):
     out = p.stdout.decode(errors="replace")
     m = re.search(r"FINAL_VAL_BPB=([0-9.]+|inf)", out)
     bpb = float(m.group(1)) if m else float("inf")
-    return {"stdout": out, "val_bpb": bpb, "elapsed": time.time() - t0, "ok": bpb != float("inf"),
-            "rc": p.returncode}
+    mt = re.search(r"FINAL_TEST_BPB=([0-9.]+|inf)", out)
+    tbpb = float(mt.group(1)) if mt else float("inf")
+    # the agent never sees the test number
+    agent_out = re.sub(r"FINAL_TEST_BPB=.*\n?", "", out)
+    return {"stdout": agent_out, "val_bpb": bpb, "test_bpb": tbpb, "elapsed": time.time() - t0,
+            "ok": bpb != float("inf"), "rc": p.returncode}
 
 
 def tail(text, n_lines=40, max_chars=3000):

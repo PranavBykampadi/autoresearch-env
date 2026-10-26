@@ -19,13 +19,23 @@ Tools (use exactly one per message, as a tagged block):
 <action tool="list_files"></action>
 <action tool="read_file" path="model.py"></action>
 <action tool="write_file" path="model.py">FULL FILE CONTENT</action>
-<action tool="run_experiment" note="one line on what you're testing"></action>
-<action tool="finish">REPORT: what you tried, what worked, best val_bpb, and what you'd try next</action>
+<action tool="run_experiment" note="one line on what you're testing" budget="90"></action>
+<action tool="finish" submit="6">REPORT: what you tried, what worked, best val_bpb, what you'd try next</action>
+
+Budget: you have a total allowance of GPU seconds for the whole episode. Each run_experiment spends the
+budget you give it (20 to 300 seconds; default 90). Many short runs screen ideas cheaply; a few long runs
+show what a config can really do. You decide the split. The status line shows what is left.
+
+Scoring: when you finish, name the experiment whose model.py you want scored with submit="N" (or omit it to
+submit the current model.py). That file is RE-RUN with a fresh random seed and scored on a held-out test
+slice you never see. So: submit the config you believe generalizes, not a lucky seed, and make sure the
+submitted file is actually the one that produced your best number.
 
 Rules:
-- You have a limited number of experiments. Each one trains for the budget and reports val_bpb.
 - Keep the build_model(vocab_size) and train(model, train_bytes, budget_s, device) entry points.
 - train() must respect budget_s (wall clock). Runs that go far over are scored as failures.
+- Use only the train_bytes passed to train(). Reading the data file or the harness from model.py is
+  checked for and zeroes the episode.
 - Write the whole file when you use write_file; there is no patch tool.
 - Keep notes.md updated with hypotheses and results so your report is grounded.
 - Be a scientist: change one or two things at a time, read the harness output, and build on what works.
@@ -70,8 +80,8 @@ def compact_history(messages, keep_last=2):
 def run_episode(client, env, max_turns=40, verbose=True, log=None):
     obs = env.reset()
     intro = (f"{obs}\n\nFiles: model.py (baseline, editable), harness.py (read-only), notes.md.\n"
-             f"Per-experiment training budget: {env.budget_s:.0f}s on one NVIDIA L40S. "
-             f"Experiments available: {env.max_experiments}.\n"
+             f"Total GPU budget: {env.total_budget_s:.0f} seconds on one NVIDIA L40S, per-run budget 20-300s "
+             f"(default {env.default_run_s:.0f}s). The baseline numbers were measured with a {env.default_run_s:.0f}s run.\n"
              f"Start by reading model.py and harness.py, then plan your experiments.")
     messages = [{"role": "user", "content": intro}]
     usage = {"in": 0, "out": 0}
@@ -92,7 +102,7 @@ def run_episode(client, env, max_turns=40, verbose=True, log=None):
                       "response": text, "feedback": fb})
         if verbose:
             tag = f"{tool}({args.get('path') or args.get('note','')[:60]})" if tool else "no-action"
-            best = env.best_bpb()
+            best = env.best_val()
             print(f"  turn {t+1}: {tag}" + (f" | best={best:.4f}" if best is not None else ""), flush=True)
         if log:
             with open(log, "a") as f:
@@ -102,7 +112,7 @@ def run_episode(client, env, max_turns=40, verbose=True, log=None):
         messages.append({"role": "user", "content": fb})
         messages = compact_history(messages)
     if not done:
-        # out of turns: score whatever was verified
+        # out of turns: submit the current file and score it
         env.tool_finish(report="(agent ran out of turns)")
         reward = env.final_reward()
     s = env.summary()
