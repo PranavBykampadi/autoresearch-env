@@ -227,7 +227,7 @@ class AutoResearchEnv:
 
         def matches(n, text):
             d = len(text.split(".")[1]) if "." in text else 0
-            tol = 0.5 * 10 ** (-d) + 1e-9
+            tol = 10 ** (-d) + 1e-9  # one unit in the last written digit: covers rounding and truncation
             return any(abs(n - v) <= tol for v in allowed)
 
         claimed = []

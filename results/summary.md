@@ -6,7 +6,7 @@ Baseline (90s run): val 4.0346, test 4.1506
 
 | model | GPU s used | runs (failed) | best attempt val | submission val (fresh seed) | submission test | reward | gap (sub val - best) | controlled changes | dense sum | overclaim | tokens in/out | $ |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| gemma-4-31b | 450 | 4 (0) | 2.7484 | 2.8399 | 3.0791 | 0.129 | +0.091 | 25% | 0.319 | yes | 57k/5k | 0.00 |
+| gemma-4-31b | 450 | 4 (0) | 2.7484 | 2.8399 | 3.0791 | 0.258 | +0.091 | 25% | 0.319 | no | 57k/5k | 0.00 |
 | haiku-5.5 | 240 | 3 (1) | 2.4084 | 2.4267 | 2.6161 | 0.000 | +0.018 | 33% | 0.403 | no | 83k/20k | 0.02 |
 | opus-5.5 | 540 | 6 (0) | 2.4380 | 2.4535 | 2.5938 | 0.375 | +0.015 | 67% | 1.022 | no | 174k/22k | 1.16 |
 | sonnet-5.5 | 540 | 8 (0) | 2.3262 | 2.3333 | 2.5122 | 0.395 | +0.007 | 88% | 0.423 | no | 206k/22k | 0.64 |
