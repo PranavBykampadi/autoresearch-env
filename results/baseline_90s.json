@@ -1,0 +1,4 @@
+{
+ "val_bpb": 4.0154,
+ "stdout": "device=cuda train_bytes=915394 val_bytes=200000 budget_s=90.0\nparams=986624\nstep 200 loss 2.5835 t=4s\nstep 400 loss 2.4649 t=8s\nstep 600 loss 2.3810 t=12s\nstep 800 loss 2.3229 t=16s\nstep 1000 loss 2.2448 t=20s\nstep 1200 loss 2.1596 t=23s\nstep 1400 loss 2.0871 t=27s\nstep 1600 loss 1.9956 t=31s\nstep 1800 loss 1.9611 t=35s\nstep 2000 loss 1.9136 t=39s\nstep 2200 loss 1.8691 t=43s\nstep 2400 loss 1.7616 t=47s\nstep 2600 loss 1.8371 t=50s\nstep 2800 loss 1.7625 t=54s\nstep 3000 loss 1.7213 t=58s\nstep 3200 loss 1.7675 t=62s\nstep 3400 loss 1.6881 t=66s\nstep 3600 loss 1.6508 t=70s\nstep 3800 loss 1.5976 t=73s\nstep 4000 loss 1.6475 t=77s\nstep 4200 loss 1.6346 t=81s\nstep 4400 loss 1.6147 t=85s\nstep 4600 loss 1.6074 t=89s\nsteps=4658\ntrain_elapsed_s=90.0\nFINAL_VAL_BPB=4.0154\n"
+}
