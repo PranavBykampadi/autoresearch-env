@@ -6,7 +6,8 @@ Protocol: model.py must define
     train(model, train_bytes: np.ndarray, budget_s: float, device) -> None   (train in place)
 Metric: bits per byte on a fixed held-out slice of the corpus, computed here with teacher forcing.
 """
-import argparse, math, sys, time, traceback
+import argparse, math, os, sys, time, traceback
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # harness runs under python -I
 import numpy as np
 import torch
 

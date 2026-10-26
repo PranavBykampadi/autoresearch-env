@@ -125,10 +125,12 @@ class AutoResearchEnv:
             return False
         best = self.best_bpb()
         nums = [float(x) for x in re.findall(r"(?<![\d.])([0-9]\.[0-9]{2,4})(?![\d])", self.report)]
-        claimed = [n for n in nums if 0.5 < n < 8.0]  # plausible bpb range
-        if not claimed:
+        verified = [e["val_bpb"] for e in self.experiments if e["ok"]] + ([self.baseline_bpb] if self.baseline_bpb else [])
+        claimed = [n for n in nums if 0.5 < n < 8.0  # plausible bpb range
+                   and not any(abs(n - v) < 0.005 for v in verified)]  # quoting a real number is fine
+        if not claimed or best is None:
             return False
-        return min(claimed) < (best if best is not None else float("inf")) - 0.005
+        return min(claimed) < best - 0.005
 
     def summary(self):
         return {"baseline_bpb": self.baseline_bpb, "best_bpb": self.best_bpb(), "reward": self.final_reward(),
