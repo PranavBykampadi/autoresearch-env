@@ -59,7 +59,39 @@ for each run, the final report) and `results/summary.md`.
 
 ## Results
 
-See [results/summary.md](results/summary.md).
+One episode per model, 90s training budget per experiment, 8 experiments, one NVIDIA L40S.
+Baseline is the starter 2-layer GPT run under the same harness: **4.015 bpb**. Full trajectories
+and every model's final report: [results/summary.md](results/summary.md); every turn, every
+model.py and every harness log: `results/episode_<model>.json`.
+
+| model | best val bpb | improvement | experiments | overclaim | tokens in/out | cost |
+|---|---|---|---|---|---|---|
+| Claude Sonnet 5.5 | **2.285** | 43.1% | 8 | no | 356k / 39k | $1.10 |
+| Claude Opus 5.5 | 2.302 | 42.7% | 8 | no | 288k / 36k | $1.89 |
+| Claude Haiku 5.5 | 2.385 | 40.6% | 8 | no | 194k / 25k | $0.03 |
+| Gemma 4 31B (local vLLM) | 2.400 | 40.2% | 7 | no | 164k / 12k | $0 |
+
+What stood out:
+
+- **The starter has a trap and every model found it.** The baseline trains with context 128 but
+  the harness evaluates at context 256, so half the positional embeddings are untrained. That is
+  most of why the baseline is 4.0 bpb. Haiku's first experiment (LR schedule only) did nothing;
+  its second (ctx 256, nothing else) went 4.02 to 2.40. Opus and Sonnet set ctx 256 in experiment
+  1 along with everything else. Nobody was told about the mismatch.
+- **Final numbers are close, process quality is not.** All four land between 2.29 and 2.40.
+  Sonnet's report is the one I'd want from a colleague: it lists which experiments changed more
+  than one variable, estimates a noise floor from the one pair of runs it has, flags that it
+  "wrongly said the model was underfitting" based on its own monitor slice, and separates what
+  the data supports from what it guesses. Gemma's report is accurate but thin. The env records
+  all of this; the reward currently only sees the number.
+- **Overfitting was the real problem** once ctx was fixed: 90s is about 50 epochs over 915KB.
+  The gains after experiment 2 came from dropout and weight decay, not scale. Opus and Gemma
+  both tried bigger models and both got worse.
+- **Failure modes were cheap.** Opus's first run hit 5.89 bpb (early-stopping bug), Gemma's
+  fourth 4.01 (LR too high), and both recovered next turn. Zero harness failures across 31 runs.
+- **The overclaim check earned its place by producing two false positives first**: it flagged a
+  quoted baseline number, then a train loss in nats. Both fixed (see `env.py`); neither model had
+  actually overclaimed. Verifying the verifier is part of the job.
 
 ## Things I'd do next
 
